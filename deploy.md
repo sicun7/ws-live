@@ -68,3 +68,9 @@
 
 测试turn:
 https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
+
+windows搭建turn:
+https://blog.csdn.net/qq_20937557/article/details/142130087
+
+浏览器摄像头权限:
+https://www.cnblogs.com/zhouyang209117/p/17834189.html
