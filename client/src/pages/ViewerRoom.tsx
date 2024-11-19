@@ -39,12 +39,34 @@ export default function ViewerRoom() {
     const rtcConnection = new WebRTCConnection();
     rtcConnectionRef.current = rtcConnection;
 
+    console.log('Attempting to join room with ID:', roomId);
+
     let pendingCandidates: RTCIceCandidateInit[] = [];
 
     rtcConnection.onTrack((stream) => {
-      console.log('Received stream from broadcaster');
+      console.log('Received stream from broadcaster:', stream);
+      console.log('Stream tracks:', stream.getTracks().map(t => ({
+        kind: t.kind,
+        enabled: t.enabled,
+        readyState: t.readyState,
+        muted: t.muted
+      })));
+      
       if (videoRef.current) {
+        console.log('Setting video srcObject');
         videoRef.current.srcObject = stream;
+        
+        // 确保视频元素正确配置
+        videoRef.current.autoplay = true;
+        videoRef.current.playsInline = true;
+        
+        videoRef.current.play().then(() => {
+          console.log('Video playback started successfully');
+        }).catch(err => {
+          console.error('Error playing video:', err);
+        });
+      } else {
+        console.error('Video element reference not found');
       }
     });
 
@@ -58,25 +80,29 @@ export default function ViewerRoom() {
       }
     });
 
-    socketConnection.emit('joinRoom', roomId);
+    socketConnection.emit('joinRoom', { roomId });
 
     socketConnection.on('roomJoined', (joinedRoom: Room) => {
+      console.log('Successfully joined room:', joinedRoom);
       setRoom(joinedRoom);
     });
 
     socketConnection.on('streamOffer', async (data: { offer: RTCSessionDescriptionInit; roomId: string }) => {
-      console.log('Received offer from broadcaster');
+      console.log('Received offer from broadcaster:', data.offer);
       try {
         await rtcConnection.setRemoteDescription(data.offer);
+        console.log('Set remote description successfully');
         
         while (pendingCandidates.length > 0) {
           const candidate = pendingCandidates.shift();
           if (candidate) {
+            console.log('Processing pending ICE candidate');
             await rtcConnection.handleCandidate(candidate);
           }
         }
 
         const answer = await rtcConnection.createAnswer();
+        console.log('Created answer:', answer);
         socketConnection.emit('streamAnswer', {
           roomId: data.roomId,
           answer
@@ -87,10 +113,13 @@ export default function ViewerRoom() {
     });
 
     socketConnection.on('iceCandidate', async (candidate: RTCIceCandidateInit) => {
+      console.log('Received ICE candidate:', candidate);
       try {
         if (rtcConnection.hasRemoteDescription()) {
           await rtcConnection.handleCandidate(candidate);
+          console.log('Added ICE candidate successfully');
         } else {
+          console.log('Queuing ICE candidate');
           pendingCandidates.push(candidate);
         }
       } catch (err) {
@@ -139,6 +168,25 @@ export default function ViewerRoom() {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    const handleError = (error: any) => {
+      console.error('Socket error:', error);
+      alert(error.message || 'Failed to join room');
+      navigate('/');
+    };
+
+    socketRef.current.on('error', handleError);
+
+    // 确保在组件卸载时清理监听器
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.removeListener('error', handleError);
+      }
+    };
+  }, [socketRef, navigate]);
 
   return (
     <Container maxWidth="lg">

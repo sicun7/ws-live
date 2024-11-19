@@ -39,6 +39,8 @@ export default function BroadcastRoom() {
   const rtcConnectionsRef = useRef<Map<string, WebRTCConnection>>(new Map());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const peerConnections = useRef<Map<string, WebRTCConnection>>(new Map());
+  const localStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const socketConnection = new SocketConnection(SOCKET_SERVER);
@@ -52,45 +54,95 @@ export default function BroadcastRoom() {
       setRoom(createdRoom);
     });
 
+    const pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
+
     socketConnection.on('viewerJoined', async (data: { viewerId: string; roomId: string }) => {
       console.log('New viewer joined:', data.viewerId);
-      const rtcConnection = new WebRTCConnection();
       
-      if (streamRef.current) {
-        await rtcConnection.setLocalStream(streamRef.current);
-      }
+      try {
+        const rtcConnection = new WebRTCConnection();
+        rtcConnectionsRef.current.set(data.viewerId, rtcConnection);
+        pendingCandidates.set(data.viewerId, []);
 
-      rtcConnection.onIceCandidate((candidate) => {
-        if (candidate) {
-          socketConnection.emit('iceCandidate', {
-            roomId: data.roomId,
-            viewerId: data.viewerId,
-            candidate
+        if (streamRef.current) {
+          console.log('Current stream tracks:', streamRef.current.getTracks().map(t => ({
+            kind: t.kind,
+            enabled: t.enabled,
+            readyState: t.readyState,
+            muted: t.muted
+          })));
+
+          streamRef.current.getTracks().forEach(track => {
+            console.log('Adding track to connection:', track.kind);
+            rtcConnection.addTrack(track, streamRef.current!);
           });
+        } else {
+          console.warn('No local stream available when viewer joined');
+          return;
         }
-      });
 
-      const offer = await rtcConnection.createOffer();
-      socketConnection.emit('streamOffer', {
-        roomId: data.roomId,
-        viewerId: data.viewerId,
-        offer
-      });
+        rtcConnection.onIceCandidate((candidate) => {
+          if (candidate) {
+            console.log('Sending ICE candidate to viewer:', candidate);
+            socketConnection.emit('iceCandidate', {
+              roomId,
+              viewerId: data.viewerId,
+              candidate
+            });
+          }
+        });
 
-      rtcConnectionsRef.current.set(data.viewerId, rtcConnection);
+        const offer = await rtcConnection.createOffer();
+        console.log('Created offer:', offer);
+        
+        socketConnection.emit('streamOffer', {
+          roomId,
+          viewerId: data.viewerId,
+          offer
+        });
+      } catch (err) {
+        console.error('Error creating offer for new viewer:', err);
+      }
     });
 
     socketConnection.on('streamAnswer', async (data: { answer: RTCSessionDescriptionInit; viewerId: string }) => {
+      console.log('Received answer from viewer:', data);
       const rtcConnection = rtcConnectionsRef.current.get(data.viewerId);
       if (rtcConnection) {
-        await rtcConnection.handleAnswer(data.answer);
+        try {
+          await rtcConnection.handleAnswer(data.answer);
+          console.log('Successfully handled answer');
+          
+          const candidates = pendingCandidates.get(data.viewerId) || [];
+          console.log(`Processing ${candidates.length} pending candidates for viewer:`, data.viewerId);
+          for (const candidate of candidates) {
+            await rtcConnection.handleCandidate(candidate);
+          }
+          pendingCandidates.delete(data.viewerId);
+        } catch (err) {
+          console.error('Error handling answer:', err);
+        }
+      } else {
+        console.error('No RTCPeerConnection found for viewer:', data.viewerId);
       }
     });
 
     socketConnection.on('iceCandidate', async (data: { candidate: RTCIceCandidateInit; viewerId: string }) => {
       const rtcConnection = rtcConnectionsRef.current.get(data.viewerId);
       if (rtcConnection) {
-        await rtcConnection.handleCandidate(data.candidate);
+        try {
+          if (rtcConnection.hasRemoteDescription()) {
+            await rtcConnection.handleCandidate(data.candidate);
+            console.log('Added ICE candidate successfully');
+          } else {
+            console.log('Queuing ICE candidate for viewer:', data.viewerId);
+            const candidates = pendingCandidates.get(data.viewerId) || [];
+            candidates.push(data.candidate);
+            pendingCandidates.set(data.viewerId, candidates);
+          }
+        } catch (err) {
+          console.error('Error handling ICE candidate:', err);
+        }
       }
     });
 
@@ -119,12 +171,20 @@ export default function BroadcastRoom() {
         video: true,
         audio: true
       });
+      console.log('Got camera stream:', stream.getTracks());
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
       streamRef.current = stream;
+      localStreamRef.current = stream;
       setIsStreaming(true);
       setIsScreenSharing(false);
+
+      peerConnections.current.forEach((connection, viewerId) => {
+        stream.getTracks().forEach(track => {
+          connection.addTrack(track, stream);
+        });
+      });
     } catch (err) {
       console.error('Error accessing camera:', err);
     }
@@ -137,12 +197,20 @@ export default function BroadcastRoom() {
         video: true,
         audio: true
       });
+      console.log('Got screen share stream:', stream.getTracks());
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
       streamRef.current = stream;
+      localStreamRef.current = stream;
       setIsStreaming(true);
       setIsScreenSharing(true);
+
+      peerConnections.current.forEach((connection, viewerId) => {
+        stream.getTracks().forEach(track => {
+          connection.addTrack(track, stream);
+        });
+      });
     } catch (err) {
       console.error('Error sharing screen:', err);
     }

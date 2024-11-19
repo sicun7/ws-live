@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Room } from '../types/room';
+import { WsException } from '@nestjs/websockets';
+import { Socket } from 'socket.io';
 
 @Injectable()
 export class LiveStreamService {
@@ -29,14 +31,26 @@ export class LiveStreamService {
     return this.rooms.get(roomId);
   }
 
-  joinRoom(viewerId: string, roomId: string): Room {
+  async joinRoom(roomId: string, client: Socket): Promise<Room> {
+    console.log('Join room request:', {
+      roomId,
+      clientId: client.id,
+      availableRooms: Array.from(this.rooms.entries())
+    });
+    
     const room = this.rooms.get(roomId);
     if (!room) {
-      throw new Error('Room not found');
+      console.error(`Room ${roomId} not found. Available rooms:`, 
+        Array.from(this.rooms.keys()));
+      throw new WsException({
+        status: 'error',
+        message: `Room ${roomId} not found. Please check if the broadcaster is still streaming.`
+      });
     }
-
-    if (!room.viewers.includes(viewerId)) {
-      room.viewers.push(viewerId);
+    
+    if (!room.viewers.includes(client.id)) {
+      room.viewers.push(client.id);
+      console.log(`Added viewer ${client.id} to room ${roomId}`);
     }
     
     return room;

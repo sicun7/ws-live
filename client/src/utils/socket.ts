@@ -15,6 +15,10 @@ export class SocketConnection {
     this.socket.emit(event, ...args);
   }
 
+  removeListener(event: string, callback: (...args: any[]) => void) {
+    this.socket.removeListener(event, callback);
+  }
+
   close() {
     this.socket.close();
   }
