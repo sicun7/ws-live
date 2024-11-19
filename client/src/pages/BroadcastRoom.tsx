@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -9,19 +9,28 @@ import {
   Paper,
 } from '@mui/material';
 import ScreenShareIcon from '@mui/icons-material/ScreenShare';
+import StopScreenShareIcon from '@mui/icons-material/StopScreenShare';
 import VideocamIcon from '@mui/icons-material/Videocam';
+import VideocamOffIcon from '@mui/icons-material/VideocamOff';
+import LogoutIcon from '@mui/icons-material/Logout';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { WebRTCConnection } from '../utils/webrtc';
 import { SocketConnection } from '../utils/socket';
 
 const SOCKET_SERVER = 'http://192.168.6.9:8081';
 
 export default function BroadcastRoom() {
+  const navigate = useNavigate();
   const { roomId } = useParams();
   const [socket, setSocket] = useState<SocketConnection | null>(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rtcConnectionsRef = useRef<Map<string, WebRTCConnection>>(new Map());
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const socketConnection = new SocketConnection(SOCKET_SERVER);
@@ -77,8 +86,21 @@ export default function BroadcastRoom() {
     };
   }, [roomId]);
 
+  const stopStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      setIsStreaming(false);
+      setIsScreenSharing(false);
+    }
+  };
+
   const startCamera = async () => {
     try {
+      stopStream();
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true
@@ -87,6 +109,7 @@ export default function BroadcastRoom() {
         videoRef.current.srcObject = stream;
       }
       streamRef.current = stream;
+      setIsStreaming(true);
       setIsScreenSharing(false);
     } catch (err) {
       console.error('Error accessing camera:', err);
@@ -95,6 +118,7 @@ export default function BroadcastRoom() {
 
   const startScreenShare = async () => {
     try {
+      stopStream();
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true
@@ -103,11 +127,43 @@ export default function BroadcastRoom() {
         videoRef.current.srcObject = stream;
       }
       streamRef.current = stream;
+      setIsStreaming(true);
       setIsScreenSharing(true);
     } catch (err) {
       console.error('Error sharing screen:', err);
     }
   };
+
+  const endBroadcast = () => {
+    stopStream();
+    rtcConnectionsRef.current.forEach(connection => connection.close());
+    if (socket) {
+      socket.emit('endBroadcast', roomId);
+      socket.close();
+    }
+    navigate('/');
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   return (
     <Container maxWidth="lg">
@@ -116,7 +172,15 @@ export default function BroadcastRoom() {
           <Typography variant="h4" gutterBottom align="center">
             直播间: {roomId}
           </Typography>
-          <Box sx={{ position: 'relative', width: '100%', aspectRatio: '16/9' }}>
+          <Box 
+            ref={containerRef}
+            sx={{ 
+              position: 'relative', 
+              width: '100%', 
+              aspectRatio: '16/9',
+              bgcolor: '#000'
+            }}
+          >
             <video
               ref={videoRef}
               autoPlay
@@ -125,27 +189,52 @@ export default function BroadcastRoom() {
               style={{
                 width: '100%',
                 height: '100%',
-                backgroundColor: '#000',
                 objectFit: 'contain'
               }}
             />
+            <Button
+              variant="contained"
+              color="primary"
+              sx={{
+                position: 'absolute',
+                right: 16,
+                bottom: 16,
+                minWidth: 'auto',
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                padding: 0
+              }}
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+            </Button>
           </Box>
           <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
             <Button
               variant="contained"
-              startIcon={<VideocamIcon />}
-              onClick={startCamera}
+              startIcon={isStreaming && !isScreenSharing ? <VideocamOffIcon /> : <VideocamIcon />}
+              onClick={isStreaming && !isScreenSharing ? stopStream : startCamera}
               fullWidth
             >
-              开启摄像头
+              {isStreaming && !isScreenSharing ? '关闭摄像头' : '开启摄像头'}
             </Button>
             <Button
               variant="contained"
-              startIcon={<ScreenShareIcon />}
-              onClick={startScreenShare}
+              startIcon={isScreenSharing ? <StopScreenShareIcon /> : <ScreenShareIcon />}
+              onClick={isScreenSharing ? stopStream : startScreenShare}
               fullWidth
             >
-              共享屏幕
+              {isScreenSharing ? '停止共享' : '共享屏幕'}
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<LogoutIcon />}
+              onClick={endBroadcast}
+              fullWidth
+            >
+              结束直播
             </Button>
           </Stack>
         </Paper>
