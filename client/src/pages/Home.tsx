@@ -66,6 +66,8 @@ export default function Home() {
   const handleCreateRoom = () => {
     if (newRoomTitle.trim()) {
       const newRoomId = Math.random().toString(36).substr(2, 9);
+      localStorage.setItem(`room-title-${newRoomId}`, newRoomTitle);
+      
       socket?.emit('createRoom', { roomId: newRoomId, title: newRoomTitle });
       setIsCreateDialogOpen(false);
       setNewRoomTitle('');
@@ -151,22 +153,72 @@ export default function Home() {
         )}
       </Box>
 
-      <Dialog open={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)}>
-        <DialogTitle>创建直播间</DialogTitle>
-        <DialogContent>
+      <Dialog 
+        open={isCreateDialogOpen} 
+        onClose={() => setIsCreateDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            width: '100%',
+            maxWidth: '500px',
+            borderRadius: 2
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          borderBottom: 1, 
+          borderColor: 'divider',
+          pb: 2
+        }}>
+          创建直播间
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            请输入直播间标题，让观众更容易找到你的直播
+          </Typography>
           <TextField
             autoFocus
             margin="dense"
             label="直播间标题"
+            placeholder="例如：XXX的直播间"
             fullWidth
             variant="outlined"
             value={newRoomTitle}
             onChange={(e) => setNewRoomTitle(e.target.value)}
+            InputProps={{
+              sx: {
+                borderRadius: 1.5
+              }
+            }}
+            helperText={`${newRoomTitle.length}/50字`}
+            inputProps={{
+              maxLength: 50
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsCreateDialogOpen(false)}>取消</Button>
-          <Button onClick={handleCreateRoom} disabled={!newRoomTitle.trim()}>
+        <DialogActions sx={{ 
+          px: 3, 
+          py: 2,
+          borderTop: 1, 
+          borderColor: 'divider' 
+        }}>
+          <Button 
+            onClick={() => setIsCreateDialogOpen(false)}
+            sx={{ 
+              borderRadius: 2,
+              px: 3
+            }}
+          >
+            取消
+          </Button>
+          <Button 
+            onClick={handleCreateRoom} 
+            disabled={!newRoomTitle.trim()}
+            variant="contained"
+            sx={{ 
+              borderRadius: 2,
+              px: 3
+            }}
+          >
             创建
           </Button>
         </DialogActions>

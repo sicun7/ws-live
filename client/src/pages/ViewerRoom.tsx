@@ -144,9 +144,14 @@ export default function ViewerRoom() {
     <Container maxWidth="lg">
       <Box sx={{ mt: 4 }}>
         <Paper elevation={3} sx={{ p: 3 }}>
-          <Typography variant="h4" gutterBottom align="center">
-            观看直播: {room?.title || roomId}
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
+            <Typography variant="h4" component="div" sx={{ flexGrow: 1 }}>
+              {room?.title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              房间号：{roomId}
+            </Typography>
+          </Stack>
           <Box 
             ref={containerRef}
             sx={{ 

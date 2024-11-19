@@ -44,7 +44,9 @@ export default function BroadcastRoom() {
     const socketConnection = new SocketConnection(SOCKET_SERVER);
     setSocket(socketConnection);
 
-    socketConnection.emit('createRoom', { roomId, title: '直播间 ' + roomId });
+    const roomTitle = localStorage.getItem(`room-title-${roomId}`) || '未命名直播间';
+    
+    socketConnection.emit('createRoom', { roomId, title: roomTitle });
 
     socketConnection.on('roomCreated', (createdRoom: Room) => {
       setRoom(createdRoom);
@@ -181,9 +183,14 @@ export default function BroadcastRoom() {
     <Container maxWidth="lg">
       <Box sx={{ mt: 4 }}>
         <Paper elevation={3} sx={{ p: 3 }}>
-          <Typography variant="h4" gutterBottom align="center">
-            直播间: {room?.title || roomId}
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
+            <Typography variant="h4" component="div" sx={{ flexGrow: 1 }}>
+              {room?.title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              房间号：{roomId}
+            </Typography>
+          </Stack>
           <Box 
             ref={containerRef}
             sx={{ 
