@@ -16,6 +16,13 @@ import { SocketConnection } from '../utils/socket';
 
 const SOCKET_SERVER = 'http://192.168.6.9:8081';
 
+interface Room {
+  id: string;
+  title: string;
+  hostId: string;
+  viewers: string[];
+}
+
 export default function ViewerRoom() {
   const navigate = useNavigate();
   const { roomId } = useParams();
@@ -24,6 +31,7 @@ export default function ViewerRoom() {
   const socketRef = useRef<SocketConnection | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [room, setRoom] = useState<Room | null>(null);
 
   useEffect(() => {
     const socketConnection = new SocketConnection(SOCKET_SERVER);
@@ -51,6 +59,10 @@ export default function ViewerRoom() {
     });
 
     socketConnection.emit('joinRoom', roomId);
+
+    socketConnection.on('roomJoined', (joinedRoom: Room) => {
+      setRoom(joinedRoom);
+    });
 
     socketConnection.on('streamOffer', async (data: { offer: RTCSessionDescriptionInit; roomId: string }) => {
       console.log('Received offer from broadcaster');
@@ -133,7 +145,7 @@ export default function ViewerRoom() {
       <Box sx={{ mt: 4 }}>
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h4" gutterBottom align="center">
-            观看直播: {roomId}
+            观看直播: {room?.title || roomId}
           </Typography>
           <Box 
             ref={containerRef}

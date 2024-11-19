@@ -5,19 +5,24 @@ import { Room } from '../types/room';
 export class LiveStreamService {
   private rooms: Map<string, Room> = new Map();
 
-  createRoom(hostId: string, roomId: string): Room {
+  createRoom(hostId: string, roomId: string, title: string): Room {
     if (this.rooms.has(roomId)) {
       throw new Error('Room already exists');
     }
 
     const room: Room = {
       id: roomId,
+      title,
       hostId,
       viewers: [],
     };
 
     this.rooms.set(roomId, room);
     return room;
+  }
+
+  getAllRooms(): Room[] {
+    return Array.from(this.rooms.values());
   }
 
   getRoom(roomId: string): Room | undefined {

@@ -12,17 +12,21 @@ let LiveStreamService = class LiveStreamService {
     constructor() {
         this.rooms = new Map();
     }
-    createRoom(hostId, roomId) {
+    createRoom(hostId, roomId, title) {
         if (this.rooms.has(roomId)) {
             throw new Error('Room already exists');
         }
         const room = {
             id: roomId,
+            title,
             hostId,
             viewers: [],
         };
         this.rooms.set(roomId, room);
         return room;
+    }
+    getAllRooms() {
+        return Array.from(this.rooms.values());
     }
     getRoom(roomId) {
         return this.rooms.get(roomId);

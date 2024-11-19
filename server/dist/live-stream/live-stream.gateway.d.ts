@@ -1,15 +1,18 @@
 import { OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { LiveStreamService } from './live-stream.service';
-import { Room } from '../types/room';
 export declare class LiveStreamGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly liveStreamService;
     server: Server;
     constructor(liveStreamService: LiveStreamService);
     handleConnection(client: Socket): void;
     handleDisconnect(client: Socket): void;
-    handleCreateRoom(client: Socket, roomId: string): Room;
-    handleJoinRoom(client: Socket, roomId: string): Room;
+    handleCreateRoom(client: Socket, payload: {
+        roomId: string;
+        title: string;
+    }): void;
+    handleGetRooms(client: Socket): void;
+    handleJoinRoom(client: Socket, roomId: string): void;
     handleStreamOffer(client: Socket, payload: {
         roomId: string;
         viewerId: string;
@@ -24,4 +27,5 @@ export declare class LiveStreamGateway implements OnGatewayConnection, OnGateway
         viewerId: string;
         candidate: RTCIceCandidateInit;
     }): void;
+    private broadcastRoomsList;
 }

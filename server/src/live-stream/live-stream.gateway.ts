@@ -27,25 +27,35 @@ export class LiveStreamGateway implements OnGatewayConnection, OnGatewayDisconne
   handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
     this.liveStreamService.handleDisconnect(client.id);
+    this.broadcastRoomsList();
   }
 
   @SubscribeMessage('createRoom')
-  handleCreateRoom(client: Socket, roomId: string): Room {
-    client.join(roomId);
-    return this.liveStreamService.createRoom(client.id, roomId);
+  handleCreateRoom(client: Socket, payload: { roomId: string; title: string }): void {
+    client.join(payload.roomId);
+    const room = this.liveStreamService.createRoom(client.id, payload.roomId, payload.title);
+    client.emit('roomCreated', room);
+    this.broadcastRoomsList();
+  }
+
+  @SubscribeMessage('getRooms')
+  handleGetRooms(client: Socket): void {
+    const rooms = this.liveStreamService.getAllRooms();
+    client.emit('rooms', rooms);
   }
 
   @SubscribeMessage('joinRoom')
-  handleJoinRoom(client: Socket, roomId: string): Room {
+  handleJoinRoom(client: Socket, roomId: string): void {
     const room = this.liveStreamService.joinRoom(client.id, roomId);
     client.join(roomId);
+    
+    client.emit('roomJoined', room);
     
     this.server.to(room.hostId).emit('viewerJoined', {
       viewerId: client.id,
       roomId: roomId
     });
-    
-    return room;
+    this.broadcastRoomsList();
   }
 
   @SubscribeMessage('streamOffer')
@@ -80,5 +90,10 @@ export class LiveStreamGateway implements OnGatewayConnection, OnGatewayDisconne
         });
       }
     }
+  }
+
+  private broadcastRoomsList(): void {
+    const rooms = this.liveStreamService.getAllRooms();
+    this.server.emit('rooms', rooms);
   }
 } 

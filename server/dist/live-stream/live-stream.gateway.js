@@ -23,19 +23,27 @@ let LiveStreamGateway = class LiveStreamGateway {
     handleDisconnect(client) {
         console.log(`Client disconnected: ${client.id}`);
         this.liveStreamService.handleDisconnect(client.id);
+        this.broadcastRoomsList();
     }
-    handleCreateRoom(client, roomId) {
-        client.join(roomId);
-        return this.liveStreamService.createRoom(client.id, roomId);
+    handleCreateRoom(client, payload) {
+        client.join(payload.roomId);
+        const room = this.liveStreamService.createRoom(client.id, payload.roomId, payload.title);
+        client.emit('roomCreated', room);
+        this.broadcastRoomsList();
+    }
+    handleGetRooms(client) {
+        const rooms = this.liveStreamService.getAllRooms();
+        client.emit('rooms', rooms);
     }
     handleJoinRoom(client, roomId) {
         const room = this.liveStreamService.joinRoom(client.id, roomId);
         client.join(roomId);
+        client.emit('roomJoined', room);
         this.server.to(room.hostId).emit('viewerJoined', {
             viewerId: client.id,
             roomId: roomId
         });
-        return room;
+        this.broadcastRoomsList();
     }
     handleStreamOffer(client, payload) {
         this.server.to(payload.viewerId).emit('streamOffer', {
@@ -66,6 +74,10 @@ let LiveStreamGateway = class LiveStreamGateway {
             }
         }
     }
+    broadcastRoomsList() {
+        const rooms = this.liveStreamService.getAllRooms();
+        this.server.emit('rooms', rooms);
+    }
 };
 exports.LiveStreamGateway = LiveStreamGateway;
 __decorate([
@@ -75,14 +87,20 @@ __decorate([
 __decorate([
     (0, websockets_1.SubscribeMessage)('createRoom'),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [socket_io_1.Socket, String]),
-    __metadata("design:returntype", Object)
+    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
+    __metadata("design:returntype", void 0)
 ], LiveStreamGateway.prototype, "handleCreateRoom", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('getRooms'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket]),
+    __metadata("design:returntype", void 0)
+], LiveStreamGateway.prototype, "handleGetRooms", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('joinRoom'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [socket_io_1.Socket, String]),
-    __metadata("design:returntype", Object)
+    __metadata("design:returntype", void 0)
 ], LiveStreamGateway.prototype, "handleJoinRoom", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('streamOffer'),

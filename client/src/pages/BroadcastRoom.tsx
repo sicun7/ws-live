@@ -20,12 +20,20 @@ import { SocketConnection } from '../utils/socket';
 
 const SOCKET_SERVER = 'http://192.168.6.9:8081';
 
+interface Room {
+  id: string;
+  title: string;
+  hostId: string;
+  viewers: string[];
+}
+
 export default function BroadcastRoom() {
   const navigate = useNavigate();
   const { roomId } = useParams();
   const [socket, setSocket] = useState<SocketConnection | null>(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [room, setRoom] = useState<Room | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rtcConnectionsRef = useRef<Map<string, WebRTCConnection>>(new Map());
@@ -36,7 +44,11 @@ export default function BroadcastRoom() {
     const socketConnection = new SocketConnection(SOCKET_SERVER);
     setSocket(socketConnection);
 
-    socketConnection.emit('createRoom', roomId);
+    socketConnection.emit('createRoom', { roomId, title: '直播间 ' + roomId });
+
+    socketConnection.on('roomCreated', (createdRoom: Room) => {
+      setRoom(createdRoom);
+    });
 
     socketConnection.on('viewerJoined', async (data: { viewerId: string; roomId: string }) => {
       console.log('New viewer joined:', data.viewerId);
@@ -170,7 +182,7 @@ export default function BroadcastRoom() {
       <Box sx={{ mt: 4 }}>
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h4" gutterBottom align="center">
-            直播间: {roomId}
+            直播间: {room?.title || roomId}
           </Typography>
           <Box 
             ref={containerRef}
