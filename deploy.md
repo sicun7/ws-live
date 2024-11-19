@@ -63,3 +63,8 @@
 考虑使用 CDN 加速静态资源
 实现错误监控和日志系统
 考虑使用负载均衡器处理大量并发连接
+
+
+
+测试turn:
+https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
